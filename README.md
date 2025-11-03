@@ -28,3 +28,6 @@ It captures live network packets and displays basic details such as **Time, Size
 ```bash
 pip install fastapi uvicorn
 python app.py
+
+Then open:
+👉 http://127.0.0.1:8000/static/index.html
