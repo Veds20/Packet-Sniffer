@@ -1,0 +1,45 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Web Sniffer</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{background:#071016;color:#cfeefc;font-family:monospace;margin:0;height:100vh;display:flex;flex-direction:column}
+header{padding:10px;background:#00121a;color:#fff;display:flex;align-items:center;gap:10px}
+.title{font-weight:700}
+.controls{display:flex;gap:8px;align-items:center;width:100%}
+select,input{padding:6px;border-radius:6px;border:1px solid #034;background:#022;color:#cfeefc}
+button{padding:6px;border-radius:6px;background:#036;color:#fff;border:none;cursor:pointer}
+#status{margin-left:auto;font-size:13px;color:#bfe}
+main{display:flex;flex:1;overflow:hidden}
+.left{width:60%;border-right:1px solid #022;display:flex;flex-direction:column}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th,td{padding:6px;border-bottom:1px solid #022;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+th{background:#021724;color:#fff;font-weight:700}
+tbody{display:block;overflow:auto;height:calc(100vh - 150px)}
+thead,tbody tr{display:table;width:100%;table-layout:fixed}
+tbody tr:hover{background:#022a36;cursor:pointer}
+.right{flex:1;padding:12px;display:flex;flex-direction:column}
+.details{background:#021417;border-radius:8px;padding:12px;overflow:auto;flex:1;font-family:monospace;font-size:13px;color:#dff}
+.TCP{color:#7fd3ff}.UDP{color:#c7a5ff}.ICMP{color:#ffd36b}
+</style></head><body>
+<header><div class="title">Web Sniffer</div>
+<div class="controls">
+<label>Iface:<input id="iface" value="eth0" style="width:90px"></label>
+<label>Filter:<select id="filter"><option>ALL</option><option>TCP</option><option>UDP</option><option>ICMP</option></select></label>
+<label>Max:<input id="max" value="200" style="width:70px"></label>
+<button id="start">Start</button><button id="stop">Stop</button>
+<div id="status">Idle</div></div></header>
+<main>
+<div class="left">
+<table id="packets"><thead><tr><th style="width:40px">#</th><th style="width:110px">Time</th><th>Proto</th><th style="width:70px">Size</th><th>Src</th><th>Dst</th></tr></thead><tbody></tbody></table>
+</div>
+<div class="right"><div style="font-weight:700;margin-bottom:8px">Packet details</div><div id="details" class="details">No packet selected.</div></div>
+</main>
+<script>
+let ws=null;const tbody=document.querySelector('#packets tbody');const details=document.getElementById('details');const status=document.getElementById('status');
+function connect(cb){ if(ws&&ws.readyState===1) return cb(); ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws'); ws.onopen=()=>{status.textContent='Connected';cb()}; ws.onmessage=e=>{try{const m=JSON.parse(e.data); if(m.type==='packet'&&m.pkt) addRow(m.pkt); else if(m.status){ if(m.status==='started') status.textContent='Capturing...'; else status.textContent = m.status + (m.count? ' ('+m.count+')':'');}}catch(err){console.error(err)} }; ws.onclose=()=>status.textContent='Socket closed';}
+function addRow(p){ const tr=document.createElement('tr'); tr.className=p.protocol||''; tr.dataset.pkt=JSON.stringify(p); const t=new Date(p.timestamp*1000); const timeStr=t.toLocaleTimeString(); tr.innerHTML=`<td style="width:40px">${p.index}</td><td style="width:110px">${timeStr}</td><td>${p.protocol}</td><td style="width:70px">${p.size}</td><td title="${p.src}">${p.src}</td><td title="${p.dst}">${p.dst}</td>`; tr.onclick=()=>{ showDetails(p); Array.from(tbody.children).forEach(r=>r.style.background=''); tr.style.background='#022a36'}; tbody.prepend(tr); }
+function showDetails(p){ details.textContent = `Time: ${new Date(p.timestamp*1000).toLocaleString()}\nType: ${p.ip_version} • ${p.protocol}\nSize: ${p.size} bytes\nSrc: ${p.src}\nDst: ${p.dst}\n\nPayload (hex preview): ${p.payload || ''}`; }
+document.getElementById('start').onclick=()=>{ connect(()=>{ ws.send(JSON.stringify({action:'start',filter:document.getElementById('filter').value, max:document.getElementById('max').value, iface:document.getElementById('iface').value})); status.textContent='Starting...'; }); };
+document.getElementById('stop').onclick=()=>{ if(ws&&ws.readyState===1) ws.send(JSON.stringify({action:'stop'})); status.textContent='Stopping...'; };
+setInterval(()=>{ if(ws&&ws.readyState===1) ws.send(JSON.stringify({action:'ping'})) },15000);
+</script>
+</body></html>
